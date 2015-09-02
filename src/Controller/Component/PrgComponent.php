@@ -15,6 +15,8 @@ use Cake\Controller\Controller;
 use Cake\Event\Event;
 use Cake\Routing\Router;
 use Cake\Utility\Hash;
+use Cake\Log\Log;
+use Cake\Error\Debugger;
 
 /**
  * Post-Redirect-Get: Transfers POST Requests to GET Requests
@@ -176,45 +178,54 @@ class PrgComponent extends Component {
  * @return void
  */
 	public function presetForm($options) {
+		Log::debug("PrgComponent::presetForm");
+
 		if (!is_array($options)) {
 			$options = ['table' => $options];
 		}
 		extract(Hash::merge($this->_config['presetForm'], $options));
 
 		$args = $this->controller->request->query;
+		$args_keys = array_keys($args);
+		// Log::debug($args);
 
 		$parsedParams = [];
 		$data = [];
 		foreach ($this->controller->presetVars as $field) {
-			if (!isset($args[$field['field']])) {
+			// Log::debug("Testing next field:");
+			// Log::debug($field);
+			if( !($matched_fields = preg_grep('/^' . $field['field'] . '$/', $args_keys)) ){
 				continue;
+			// } else {
+			// 	Log::debug("PREG MATCH");
+			// 	Log::debug($matched_fields);
 			}
 
-			if ($field['type'] === 'lookup') {
-				$searchModel = $field['table'];
-				$this->controller->loadModel($searchModel);
-				$result = $this->controller->{$searchModel}->findById($args[$field['field']])->first();
-				$parsedParams[$field['field']] = $args[$field['field']];
-				$parsedParams[$field['formField']] = $result->{$field['tableField']};
-				$data[$field['field']] = $args[$field['field']];
-				$data[$field['formField']] = $result->{$field['tableField']};
+			foreach ($matched_fields as $key => $matched_field){
+				if ($field['type'] === 'lookup') {
+					// $searchModel = $field['table'];
+					// $this->controller->loadModel($searchModel);
+					// $result = $this->controller->{$searchModel}->findById($args[$field['field']])->first();
+					// $parsedParams[$field['field']] = $args[$field['field']];
+					// $parsedParams[$field['formField']] = $result->{$field['tableField']};
+					// $data[$field['field']] = $args[$field['field']];
+					// $data[$field['formField']] = $result->{$field['tableField']};
+				} elseif ($field['type'] === 'checkbox') {
+					// $values = explode('|', $args[$field['field']]);
+					// $parsedParams[$field['field']] = $values;
+					// $data[$field['field']] = $values;
+				} elseif ($field['type'] === 'value') {
+					$parsedParams[$matched_field] = $args[$matched_field];
+					$data[$matched_field] = $args[$matched_field];
+				}
 
-			} elseif ($field['type'] === 'checkbox') {
-				$values = explode('|', $args[$field['field']]);
-				$parsedParams[$field['field']] = $values;
-				$data[$field['field']] = $values;
+				if (isset($data[$matched_field]) && $data[$matched_field] !== '') {
+					$this->isSearch = true;
+				}
 
-			} elseif ($field['type'] === 'value') {
-				$parsedParams[$field['field']] = $args[$field['field']];
-				$data[$field['field']] = $args[$field['field']];
-			}
-
-			if (isset($data[$field['field']]) && $data[$field['field']] !== '') {
-				$this->isSearch = true;
-			}
-
-			if (isset($data[$field['field']]) && $data[$field['field']] === '' && isset($field['emptyValue'])) {
-				$data[$field['field']] = $field['emptyValue'];
+				if (isset($data[$matched_field]) && $data[$matched_field] === '' && isset($field['emptyValue'])) {
+					$data[$matched_field] = $field['emptyValue'];
+				}
 			}
 		}
 
@@ -226,6 +237,9 @@ class PrgComponent extends Component {
 
 		$this->_parsedParams = $parsedParams;
 		$this->controller->set('isSearch', $this->isSearch);
+
+		// Log::debug($data);
+		// Log::debug($parsedParams);
 	}
 
 /**
@@ -427,5 +441,4 @@ class PrgComponent extends Component {
 		$res = array_merge($arg, $res);
 		return $res;
 	}
-
 }
