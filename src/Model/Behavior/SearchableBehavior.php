@@ -16,6 +16,8 @@ use Cake\ORM\Query;
 use Cake\ORM\Table;
 use Cake\Utility\Hash;
 use Cake\Utility\Text;
+// use Cake\Log\Log;
+// use Cake\Error\Debugger;
 
 /**
  * Searchable behavior
@@ -63,12 +65,16 @@ class SearchableBehavior extends Behavior {
  * @return bool always true
  */
 	public function validateSearch($searchData) {
+		// Log::debug("Called validateSearch");
+		// Log::debug($searchData);
+
 		foreach ($searchData as $key => $value) {
 			if (empty($value)) {
 				unset($searchData[$key]);
 			}
 		}
-
+		// Log::debug($searchData);
+		// Log::debug("Finished validateSearch");
 		return true;
 	}
 
@@ -80,6 +86,8 @@ class SearchableBehavior extends Behavior {
  * @return bool|array
  */
 	public function setupFilterArgs() {
+		// Log::debug("Called setupFilterArgs");
+
 		if (method_exists($this->_table, 'getFilterArgs')) {
 			$this->_table->getFilterArgs();
 		}
@@ -97,6 +105,8 @@ class SearchableBehavior extends Behavior {
 				$this->_table->filterArgs[$key]['type'] = 'value';
 			}
 		}
+
+		// Log::debug("Finished setupFilterArgs");
 		return $this->_table->filterArgs;
 	}
 
@@ -110,9 +120,16 @@ class SearchableBehavior extends Behavior {
  * @return Query
  */
 	public function findSearchable(Query $query, $data) {
+		// Log::debug("Called findSearchable");
+		// Log::debug("Query-data:");
+		// Log::debug($data);
+
 		$this->setupFilterArgs();
 
 		foreach ($this->_table->filterArgs as $field) {
+			// Log::debug("Field to be analysed:");
+			// Log::debug($field);
+
 			// If this field was not passed and a default value exists, use that instead.
 			if (!array_key_exists($field['name'], $data) && array_key_exists('defaultValue', $field)) {
 				$data[$field['name']] = $field['defaultValue'];
@@ -132,6 +149,8 @@ class SearchableBehavior extends Behavior {
 				$this->_addCondFinder($query, $data, $field);
 			}
 		}
+
+		// Log::debug("Finished findSearchable");
 		return $query;
 	}
 
@@ -143,6 +162,7 @@ class SearchableBehavior extends Behavior {
  * @return array, filtered args
  */
 	public function passedArgs($vars) {
+		// Log::debug("CALLED PassedArgs");
 		$this->setupFilterArgs($this->_table);
 
 		$result = [];
@@ -151,6 +171,8 @@ class SearchableBehavior extends Behavior {
 				$result[$var] = $val;
 			}
 		}
+		// Log::debug($vars);
+		// Log::debug($result);
 		return $result;
 	}
 
@@ -165,6 +187,8 @@ class SearchableBehavior extends Behavior {
  * @return array of conditions
  */
 	public function condLike($name, $data, $field = []) {
+		// Log::debug("condLike");
+
 		$field['name'] = $name;
 		if (!is_array($data)) {
 			$data = [$name => $data];
@@ -185,6 +209,8 @@ class SearchableBehavior extends Behavior {
  * @return string queryLikeString
  */
 	public function formatLike($data, $options = []) {
+		// Log::debug("formatLike");
+
 		$options = array_merge($this->_config, $options);
 		$from = $to = $substFrom = $substTo = [];
 		if ($options['wildcardAny'] !== '%') {
@@ -216,6 +242,8 @@ class SearchableBehavior extends Behavior {
  * @return array, [one=>..., any=>...]
  */
 	public function getWildcards($options = []) {
+		// Log::debug("getWildcards");
+
 		$options = array_merge($this->_config, $options);
 		return ['any' => $options['wildcardAny'], 'one' => $options['wildcardOne']];
 	}
@@ -229,6 +257,8 @@ class SearchableBehavior extends Behavior {
  * @return array
  */
 	protected function _addCondLike($data, $field) {
+		// Log::debug("_addCondLike");
+
 		if (!is_array($this->_config['like'])) {
 			$this->_config['like'] = ['before' => $this->_config['like'], 'after' => $this->_config['like']];
 		}
@@ -296,6 +326,8 @@ class SearchableBehavior extends Behavior {
  * @return array Conditions
  */
 	protected function _connectedLike($value, $field, $fieldName) {
+		// Log::debug("_connectedLike");
+
 		$or = [];
 		$orValues = Text::tokenize($value, $field['connectorOr']);
 		foreach ($orValues as $orValue) {
@@ -320,6 +352,8 @@ class SearchableBehavior extends Behavior {
  * @return array of conditions
  */
 	protected function _addCondValue($data, $field) {
+		// Log::debug("_addCondValue");
+
 		$fieldNames = (array)$field['field'];
 		$fieldValue = isset($data[$field['name']]) ? $data[$field['name']] : null;
 
@@ -367,12 +401,34 @@ class SearchableBehavior extends Behavior {
  * @return array of conditions modified by this method
  */
 	protected function _addCondFinder(Query $query, $data, $field) {
-		if ((!empty($field['allowEmpty']) || !empty($data[$field['name']]) || (isset($data[$field['name']]) && (string)$data[$field['name']] !== ''))) {
-			$query->find($field['finder'], [
-				'data' => $data,
-				'field' => $field
-			]);
+		// Log::debug("Called _addCondFinder");
+		// Log::debug("Data:");
+		// Log::debug($data);
+		// Log::debug("Field:");
+		// Log::debug($field);
+		$data_keys = array_keys($data);
+		$matched_data = preg_grep('/^' . $field['name'] . '$/', $data_keys);
+		// Log::debug($matched_data);
+
+		//if allowEmpty is not empty for the field or if the fieldname is matched within the data
+		if ( (!empty($field['allowEmpty']) || $matched_data) ) {
+			// Log::debug("Changing query");
+			foreach($matched_data as $key => $matched_dat){
+				//the field name and field entry could be regex
+				//overwrite them to be the matched field
+				$field['name'] = $matched_dat;
+				$field['field'] = $matched_dat;
+
+				$query->find($field['finder'], [
+					'data' => $data,
+					'field' => $field
+				]);
+			}
+		// } else {
+		// 	Log::debug("Query not effected");
 		}
+
+		// Log::debug("Finished _addCondFinder");
 		return $query;
 	}
 }
