@@ -178,7 +178,7 @@ class PrgComponent extends Component {
  * @return void
  */
 	public function presetForm($options) {
-		Log::debug("PrgComponent::presetForm");
+		// Log::debug("PrgComponent::presetForm");
 
 		if (!is_array($options)) {
 			$options = ['table' => $options];
